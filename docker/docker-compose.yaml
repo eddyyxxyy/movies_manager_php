@@ -1,0 +1,20 @@
+name: movies_manager
+
+services:
+  pgsql_database:
+    image: bitnami/postgresql:17.5.0
+    container_name: movies_manager_pgsql
+    restart: always
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRESQL_USERNAME=postgres
+      - POSTGRESQL_PASSWORD=postgres
+      - POSTGRESQL_DATABASE=movies_manager
+      - POSTGRESQL_TIMEZONE=UTC
+    volumes:
+      - movies_manager_pgsql_data:/bitnami/postgresql
+
+volumes:
+  movies_manager_pgsql_data:
+    driver: local
