@@ -1,0 +1,19 @@
+{
+    "name": "edsonpimenta/movies-manager",
+    "description": "Complete movies management system with authentication, user registration, ratings and MVC structure",
+    "type": "project",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "EdsonPimenta\\MoviesManager\\": "./"
+        }
+    },
+    "authors": [
+        {
+            "name": "Edson Pimenta",
+            "email": "dev.edsonpimenta@gmail.com"
+        }
+    ],
+    "minimum-stability": "stable",
+    "require": {}
+}
