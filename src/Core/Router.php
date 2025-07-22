@@ -6,47 +6,41 @@ namespace App\Core;
 
 use App\Enums\ERequestMethods;
 use LogicException;
+use Throwable;
 
 /**
- * Router class responsible for registering and dispatching HTTP routes.
+ * Router class handles registering and dispatching HTTP routes.
+ * 
+ * This implementation:
+ * - Matches URI and method to controller actions.
+ * - Passes Request object and route parameters to controller.
+ * - Expects controller to return a Response object.
+ * - Sends the Response after controller returns.
  */
 class Router
 {
-    /**
-     * Registered route patterns organized by HTTP method.
-     *
-     * @var array<string, array<int, array{pattern: string, original: string, handler: array}>>
-     */
     private array $routes = [];
-
-    /**
-     * @var bool Enables route debug mode (prints route table on 404).
-     */
     private bool $debug = false;
 
-    /**
-     * Enables route debug mode.
-     */
     public function enableDebug(): void
     {
         $this->debug = true;
     }
 
     /**
-     * Registers a new route.
-     *
-     * @param ERequestMethods $method HTTP method
-     * @param string $uriPattern Pattern like /user/{id}
-     * @param array{0: class-string, 1: string} $handler Controller and method
-     *
-     * @throws LogicException If the route is already defined
+     * Registers a route pattern for a HTTP method.
+     * 
+     * @param ERequestMethods $method HTTP method enum
+     * @param string $uriPattern Route pattern, e.g. /users/{id}
+     * @param array{0: class-string, 1: string} $handler Controller class and method
+     * 
+     * @throws LogicException if duplicate route detected
      */
     public function add(ERequestMethods $method, string $uriPattern, array $handler): void
     {
         $regex = preg_replace('#/{(\w+)}#', '/(?<$1>[^/]+)', $uriPattern);
         $regex = '#^' . $regex . '$#';
 
-        // Prevent duplicate route definitions
         foreach ($this->routes[$method->value] ?? [] as $route) {
             if ($route['pattern'] === $regex) {
                 throw new LogicException("Route already defined for {$method->value} {$uriPattern}");
@@ -56,47 +50,61 @@ class Router
         $this->routes[$method->value][] = [
             'pattern' => $regex,
             'original' => $uriPattern,
-            'handler' => $handler
+            'handler' => $handler,
         ];
     }
 
     /**
-     * Dispatches the current HTTP request to a matching route.
+     * Dispatches the incoming HTTP request.
+     * Matches route and calls controller action.
+     * Sends the response returned by the controller.
      */
     public function dispatch(): void
     {
         try {
-            $requestUri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?? '/';
-            $requestMethod = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+            $request = new Request();
+            $uri = $request->getUri();
+            $method = $request->getMethod();
 
-            $methodEnum = ERequestMethods::tryFrom($requestMethod);
-
+            $methodEnum = ERequestMethods::tryFrom($method);
             if (!$methodEnum) {
-                $this->handleMethodNotAllowed($requestMethod);
+                $this->handleMethodNotAllowed($method);
                 return;
             }
 
             $routes = $this->routes[$methodEnum->value] ?? [];
 
             foreach ($routes as $route) {
-                if (preg_match($route['pattern'], $requestUri, $matches)) {
+                if (preg_match($route['pattern'], $uri, $matches)) {
                     $params = array_filter($matches, 'is_string', ARRAY_FILTER_USE_KEY);
-                    [$controllerClass, $method] = $route['handler'];
+
+                    [$controllerClass, $methodName] = $route['handler'];
                     $controller = new $controllerClass();
 
-                    call_user_func_array([$controller, $method], $params);
+                    // Call controller with route params + request object
+                    $response = call_user_func_array([$controller, $methodName], [
+                        ...$params,
+                        $request
+                    ]);
+
+                    if ($response instanceof Response) {
+                        $response->send();
+                    } else {
+                        // Fallback for legacy controllers returning string/html directly
+                        echo $response;
+                    }
                     return;
                 }
             }
 
-            $this->handleNotFound($requestUri, $methodEnum);
-        } catch (\Throwable $e) {
+            $this->handleNotFound($uri, $methodEnum);
+        } catch (Throwable $e) {
             $this->handleServerError($e);
         }
     }
 
     /**
-     * Lists all registered routes by method.
+     * Print all registered routes (useful for debugging).
      *
      * @return array<string, array<int, array{uri: string, handler: string}>>
      */
@@ -109,7 +117,7 @@ class Router
                 [$controller, $methodName] = $route['handler'];
                 $result[$method][] = [
                     'uri' => $route['original'],
-                    'handler' => "{$controller}::{$methodName}"
+                    'handler' => "{$controller}::{$methodName}",
                 ];
             }
         }
@@ -117,11 +125,11 @@ class Router
         return $result;
     }
 
-    protected function handleMethodNotAllowed(string $invalidMethod): void
+    protected function handleMethodNotAllowed(string $method): void
     {
         http_response_code(405);
         echo "<h1>405 Method Not Allowed</h1>";
-        echo "<p>Method '{$invalidMethod}' is not supported.</p>";
+        echo "<p>Method '{$method}' is not supported.</p>";
     }
 
     protected function handleNotFound(string $uri, ERequestMethods $method): void
@@ -141,7 +149,7 @@ class Router
         }
     }
 
-    protected function handleServerError(\Throwable $e): void
+    protected function handleServerError(Throwable $e): void
     {
         http_response_code(500);
         echo "<h1>500 Internal Server Error</h1>";

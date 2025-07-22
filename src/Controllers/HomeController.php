@@ -4,29 +4,31 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
+use App\Core\Request;
+use App\Core\Response;
+use App\Core\View;
+
 /**
- * Controller for the home page.
+ * Controller responsible for homepage and greetings.
  */
 class HomeController
 {
     /**
-     * Handles requests to the root path ('/').
+     * Homepage action.
      *
-     * @return void
+     * @param Request $request HTTP request object
+     * @return Response HTML response with welcome message
      */
-    public function index(): void
+    public function index(Request $request): Response
     {
-        echo '<h1>Welcome to Movies Manager!</h1>';
-    }
+        $html = View::render(
+            'home',
+            [
+                'message' => 'Welcome to Movies Manager!',
+            ],
+            'base-layout',
+        );
 
-    /**
-     * Example route with a dynamic path parameter.
-     *
-     * @param string $name
-     * @return void
-     */
-    public function greet(string $name): void
-    {
-        echo "<h1>Hello, " . htmlspecialchars($name) . "!</h1>";
+        return Response::html($html);
     }
 }
