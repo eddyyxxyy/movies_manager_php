@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Core\Routing;
 
+use App\Core\Container;
 use App\Core\Http\Response;
 use RuntimeException;
 use Throwable;
@@ -14,6 +15,17 @@ use Throwable;
 final class RouteExecutor
 {
     /**
+     * Dependency Injection Container
+     * @var Container
+     */
+    private Container $container;
+
+    public function __construct(Container $container)
+    {
+        $this->container = $container;
+    }
+
+    /**
      * Instantiates the controller and invokes the specified method.
      *
      * @param class-string $controllerClass Controller class name
@@ -23,7 +35,7 @@ final class RouteExecutor
     public function handle(string $controllerClass, string $methodName, array $params = []): void
     {
         try {
-            $controller = new $controllerClass();
+            $controller = $this->container->resolve($controllerClass);
 
             if (!method_exists($controller, $methodName)) {
                 throw new RuntimeException("Method '{$methodName}' not found in '{$controllerClass}'");
