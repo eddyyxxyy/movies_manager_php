@@ -20,4 +20,9 @@ final class Config
      * Directory to find view files.
      */
     public const VIEWS_DIR = self::BASE_DIR . 'src/View/';
+
+    /**
+     * Toggles debug mode. Should be false in production.
+     */
+    public const APP_DEBUG = true;
 }

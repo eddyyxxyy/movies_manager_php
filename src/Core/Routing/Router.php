@@ -8,7 +8,6 @@ use App\Core\Config;
 use App\Core\Http\Request;
 use App\Enums\ERequestMethods;
 use LogicException;
-use Throwable;
 
 /**
  * Core routing class responsible for registering and dispatching HTTP routes.
@@ -25,8 +24,6 @@ class Router
     private array $cachedMatches = [];
 
     private string $cacheFile;
-
-    private bool $debug = false;
 
     private RouteExecutor $executor;
 
@@ -57,14 +54,6 @@ class Router
         $content = "<?php\n\nreturn {$export};\n";
 
         file_put_contents($this->cacheFile, $content, LOCK_EX);
-    }
-
-    /**
-     * Enables verbose debug mode for development.
-     */
-    public function enableDebug(): void
-    {
-        $this->debug = true;
     }
 
     /**
@@ -115,52 +104,48 @@ class Router
      */
     public function dispatch(): void
     {
-        try {
-            $request = new Request();
-            $uri = $request->getUri();
-            $method = $request->getMethod();
-            $methodEnum = ERequestMethods::tryFrom($method);
+        $request = new Request();
+        $uri = $request->getUri();
+        $method = $request->getMethod();
+        $methodEnum = ERequestMethods::tryFrom($method);
 
-            if (!$methodEnum) {
-                $this->handleMethodNotAllowed($method);
-                return;
-            }
-
-            $methodKey = $methodEnum->value;
-            $cacheKey = "{$methodKey}:{$uri}";
-
-            if (isset($this->cachedMatches[$cacheKey])) {
-                [$controllerClass, $methodName, $params] = $this->cachedMatches[$cacheKey];
-                $this->executor->handle($controllerClass, $methodName, [...($params ?? []), $request]);
-                return;
-            }
-
-            // Static route
-            if (isset($this->staticRoutes[$methodKey][$uri])) {
-                $handler = $this->staticRoutes[$methodKey][$uri];
-                $this->cachedMatches[$cacheKey] = [$handler[0], $handler[1]];
-                $this->saveCache();
-                $this->executor->handle($handler[0], $handler[1], [$request]);
-                return;
-            }
-
-            // Dynamic route
-            $segments = substr_count($uri, '/');
-            foreach ($this->dynamicRoutes[$methodKey][$segments] ?? [] as $route) {
-                if (preg_match($route['pattern'], $uri, $matches)) {
-                    $params = array_filter($matches, 'is_string', ARRAY_FILTER_USE_KEY);
-                    $handler = $route['handler'];
-                    $this->cachedMatches[$cacheKey] = [$handler[0], $handler[1], $params];
-                    $this->saveCache();
-                    $this->executor->handle($handler[0], $handler[1], [...$params, $request]);
-                    return;
-                }
-            }
-
-            $this->handleNotFound($uri, $methodEnum);
-        } catch (Throwable $e) {
-            $this->handleServerError($e);
+        if (!$methodEnum) {
+            $this->handleMethodNotAllowed($method);
+            return;
         }
+
+        $methodKey = $methodEnum->value;
+        $cacheKey = "{$methodKey}:{$uri}";
+
+        if (isset($this->cachedMatches[$cacheKey])) {
+            [$controllerClass, $methodName, $params] = $this->cachedMatches[$cacheKey];
+            $this->executor->handle($controllerClass, $methodName, [...($params ?? []), $request]);
+            return;
+        }
+
+        // Static route
+        if (isset($this->staticRoutes[$methodKey][$uri])) {
+            $handler = $this->staticRoutes[$methodKey][$uri];
+            $this->cachedMatches[$cacheKey] = [$handler[0], $handler[1]];
+            $this->saveCache();
+            $this->executor->handle($handler[0], $handler[1], [$request]);
+            return;
+        }
+
+        // Dynamic route
+        $segments = substr_count($uri, '/');
+        foreach ($this->dynamicRoutes[$methodKey][$segments] ?? [] as $route) {
+            if (preg_match($route['pattern'], $uri, $matches)) {
+                $params = array_filter($matches, 'is_string', ARRAY_FILTER_USE_KEY);
+                $handler = $route['handler'];
+                $this->cachedMatches[$cacheKey] = [$handler[0], $handler[1], $params];
+                $this->saveCache();
+                $this->executor->handle($handler[0], $handler[1], [...$params, $request]);
+                return;
+            }
+        }
+
+        $this->handleNotFound($uri, $methodEnum);
     }
 
     /**
@@ -203,6 +188,7 @@ class Router
     protected function handleMethodNotAllowed(string $method): void
     {
         http_response_code(405);
+        // TODO: a view here
         echo "<h1>405 Method Not Allowed</h1>";
         echo "<p>Method '{$method}' is not supported.</p>";
     }
@@ -213,10 +199,11 @@ class Router
     protected function handleNotFound(string $uri, ERequestMethods $method): void
     {
         http_response_code(404);
+        // TODO: a view here
         echo "<h1>404 Not Found</h1>";
         echo "<p>No route found for {$method->value} {$uri}</p>";
 
-        if ($this->debug) {
+        if (Config::APP_DEBUG) {
             echo "<h2>Available Routes:</h2><ul>";
             foreach ($this->listRoutes() as $method => $routes) {
                 foreach ($routes as $route) {
@@ -225,15 +212,5 @@ class Router
             }
             echo "</ul>";
         }
-    }
-
-    /**
-     * Handles unexpected server errors.
-     */
-    protected function handleServerError(Throwable $e): void
-    {
-        http_response_code(500);
-        echo "<h1>500 Internal Server Error</h1>";
-        echo "<pre>" . htmlspecialchars($e->getMessage()) . "</pre>";
     }
 }

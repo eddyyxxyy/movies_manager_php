@@ -11,7 +11,6 @@ use App\Core\Routing\RouteExecutor;
 return function (Container $container): Router {
     $executor = $container->resolve(RouteExecutor::class);
     $router = new Router($executor);
-    $router->enableDebug();
 
     // Routes
     $router->add(ERequestMethods::GET, '/', [HomeController::class, 'index']);
