@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
-use App\Core\Request;
-use App\Core\Response;
-use App\Core\View;
+use App\Core\Http\Request;
+use App\Core\Http\Response;
+use App\Core\View\View;
 
 /**
  * Controller responsible for homepage and greetings.

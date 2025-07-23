@@ -1,5 +1,5 @@
 <?php
-use App\Core\View;
+use App\Core\View\View;
 ?>
 
 <!DOCTYPE html>
