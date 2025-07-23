@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Core\Routing;
 
+use App\Core\Config;
 use App\Core\Http\Request;
 use App\Enums\ERequestMethods;
 use LogicException;
@@ -23,7 +24,40 @@ class Router
     /** @var array<string, array{0: class-string, 1: string, 2?: array}> */
     private array $cachedMatches = [];
 
+    private string $cacheFile;
+
     private bool $debug = false;
+
+    private RouteExecutor $executor;
+
+    public function __construct(RouteExecutor $executor)
+    {
+        $this->executor = $executor;
+        $this->cacheFile = Config::CACHE_DIR . 'routes.cache.php';
+        $this->loadCache();
+    }
+
+    private function loadCache(): void
+    {
+        if (file_exists($this->cacheFile)) {
+            $cached = include $this->cacheFile;
+            if (is_array($cached)) {
+                $this->cachedMatches = $cached;
+            }
+        }
+    }
+
+    private function saveCache(): void
+    {
+        if (!is_dir(Config::CACHE_DIR)) {
+            mkdir(Config::CACHE_DIR, 0777, true);
+        }
+
+        $export = var_export($this->cachedMatches, true);
+        $content = "<?php\n\nreturn {$export};\n";
+
+        file_put_contents($this->cacheFile, $content, LOCK_EX);
+    }
 
     /**
      * Enables verbose debug mode for development.
@@ -71,6 +105,9 @@ class Router
                 'handler' => $handler,
             ];
         }
+
+        $this->cachedMatches = [];
+        $this->saveCache();
     }
 
     /**
@@ -90,12 +127,11 @@ class Router
             }
 
             $methodKey = $methodEnum->value;
-
-            // Fast path: check cached route match
             $cacheKey = "{$methodKey}:{$uri}";
+
             if (isset($this->cachedMatches[$cacheKey])) {
                 [$controllerClass, $methodName, $params] = $this->cachedMatches[$cacheKey];
-                (new RouteExecutor())->handle($controllerClass, $methodName, [...($params ?? []), $request]);
+                $this->executor->handle($controllerClass, $methodName, [...($params ?? []), $request]);
                 return;
             }
 
@@ -103,7 +139,8 @@ class Router
             if (isset($this->staticRoutes[$methodKey][$uri])) {
                 $handler = $this->staticRoutes[$methodKey][$uri];
                 $this->cachedMatches[$cacheKey] = [$handler[0], $handler[1]];
-                (new RouteExecutor())->handle($handler[0], $handler[1], [$request]);
+                $this->saveCache();
+                $this->executor->handle($handler[0], $handler[1], [$request]);
                 return;
             }
 
@@ -114,7 +151,8 @@ class Router
                     $params = array_filter($matches, 'is_string', ARRAY_FILTER_USE_KEY);
                     $handler = $route['handler'];
                     $this->cachedMatches[$cacheKey] = [$handler[0], $handler[1], $params];
-                    (new RouteExecutor())->handle($handler[0], $handler[1], [...$params, $request]);
+                    $this->saveCache();
+                    $this->executor->handle($handler[0], $handler[1], [...$params, $request]);
                     return;
                 }
             }

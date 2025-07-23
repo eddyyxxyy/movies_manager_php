@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Core\Routing;
 
 use App\Core\Http\Response;
+use RuntimeException;
 use Throwable;
 
 /**
@@ -25,7 +26,7 @@ final class RouteExecutor
             $controller = new $controllerClass();
 
             if (!method_exists($controller, $methodName)) {
-                throw new \RuntimeException("Method '{$methodName}' not found in '{$controllerClass}'");
+                throw new RuntimeException("Method '{$methodName}' not found in '{$controllerClass}'");
             }
 
             $response = call_user_func_array([$controller, $methodName], $params);

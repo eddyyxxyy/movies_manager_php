@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Core\View;
 
+use App\Core\Config;
 use RuntimeException;
 
 class View
@@ -43,7 +44,7 @@ class View
      */
     private static function renderView(string $viewPath, array $params): string
     {
-        $viewFile = __DIR__ . '/../../View/' . $viewPath . '.php';
+        $viewFile = Config::VIEWS_DIR . $viewPath . '.php';
 
         if (!file_exists($viewFile)) {
             throw new RuntimeException("View file not found: {$viewFile}");
@@ -70,7 +71,7 @@ class View
      */
     public static function renderPartial(string $partial, array $params = []): string
     {
-        $file = __DIR__ . '/../../View/partials/' . $partial . '.php';
+        $file = Config::VIEWS_DIR . 'partials/' . $partial . '.php';
 
         if (!file_exists($file)) {
             throw new RuntimeException("Partial not found: {$file}");
