@@ -8,9 +8,9 @@ use App\Core\View\View;
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title><?= htmlspecialchars($title ?? 'Movies Manager') ?></title>
+    <title><?= $e($title ?? 'Movies Manager') ?></title>
     <meta name="description"
-        content="<?= htmlspecialchars($description ?? 'Get to know, register, rate and share your opinions about movies with a modern, simple and intuitive platform. Access Movies Manager and create your account.') ?>">
+        content="<?= $e($description ?? 'Get to know, register, rate and share your opinions about movies with a modern, simple and intuitive platform. Access Movies Manager and create your account.') ?>">
 </head>
 
 <body>

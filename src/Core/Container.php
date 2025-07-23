@@ -6,6 +6,7 @@ namespace App\Core;
 
 use Closure;
 use ReflectionClass;
+use ReflectionNamedType;
 use ReflectionParameter;
 use RuntimeException;
 
@@ -64,8 +65,11 @@ final class Container
                 if (!$type) {
                     throw new RuntimeException("Cannot resolve {$id}: Param '{$param->name}' is missing a type hint.");
                 }
-                // Recursively resolve each dependency
-                return $this->resolve($type->getName());
+                if ($type instanceof ReflectionNamedType && !$type->isBuiltin()) {
+                    // Recursively resolve each dependency
+                    return $this->resolve($type->getName());
+                }
+                throw new RuntimeException("Cannot resolve {$id}: Param '{$param->name}' has an unsupported or missing type hint.");
             },
             $parameters
         );

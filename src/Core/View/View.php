@@ -7,40 +7,81 @@ namespace App\Core\View;
 use App\Core\Config;
 use RuntimeException;
 
+/**
+ * Class responsible for rendering PHP views and partials with optional layouts,
+ * providing variable isolation and HTML escaping helpers.
+ */
 class View
 {
     /**
-     * Render a view with optional layout.
+     * Escapes a string for safe output in HTML.
      *
-     * @param string $viewPath Path relative to views folder, ex: 'home'
-     * @param array<string, mixed> $params Variables to inject in the view
-     * @param string|null $layout Layout view name, ex: 'layout' or null for none
+     * @param string $string The string to escape.
+     * @return string The escaped string.
+     */
+    public static function e(string $string): string
+    {
+        return htmlspecialchars($string, ENT_QUOTES, 'UTF-8');
+    }
+
+    /**
+     * Renders a view file with optional layout.
      *
-     * @return string Rendered HTML
+     * The $viewPath is relative to the configured views directory,
+     * without the .php extension.
+     *
+     * @param string $viewPath Path relative to the views folder, e.g., 'home/index'
+     * @param array<string, mixed> $params Variables to be extracted and used inside the view
+     * @param string|null $layout Optional layout name relative to views/layouts, or null for no layout
+     *
+     * @return string The rendered HTML output.
+     *
+     * @throws RuntimeException If the view or layout file is not found.
      */
     public static function render(string $viewPath, array $params = [], ?string $layout = 'layout'): string
     {
-        // Render the main view content first
+        $viewPath = self::sanitizePath($viewPath);
         $content = self::renderView($viewPath, $params);
 
-        // If layout is null, return content directly
         if ($layout === null) {
             return $content;
         }
 
-        // Render the layout, passing content as a variable
-        return self::renderView("layouts/{$layout}", array_merge($params, ['content' => $content]));
+        $layout = self::sanitizePath("layouts/{$layout}");
+
+        return self::renderView($layout, array_merge($params, ['content' => $content]));
     }
 
     /**
-     * Helper to render a PHP view file with given params.
+     * Renders a reusable partial/component and returns its HTML.
      *
-     * @param string $viewPath Path relative to views folder, ex: 'home'
-     * @param array<string, mixed> $params
+     * Partials are stored inside the 'partials' directory inside views.
      *
-     * @return string
+     * @param string $partial Partial filename relative to /partials/, without .php extension
+     * @param array<string, mixed> $params Optional variables to extract inside the partial
      *
-     * @throws RuntimeException If the partial file does not exist
+     * @return string Rendered HTML of the partial.
+     *
+     * @throws RuntimeException If the partial file is not found.
+     */
+    public static function renderPartial(string $partial, array $params = []): string
+    {
+        $partial = self::sanitizePath('partials/' . $partial);
+        return self::renderView($partial, $params);
+    }
+
+    /**
+     * Internal helper method to render a PHP view file.
+     *
+     * Extracts variables safely and isolates scope using a closure.
+     * Provides a local `$e` helper function for HTML escaping inside views.
+     *
+     * @param string $viewPath Path relative to views directory, without extension
+     * @param array<string, mixed> $params Variables to extract inside the view
+     *
+     * @return string Rendered HTML output.
+     *
+     * @throws RuntimeException If the view file does not exist.
      */
     private static function renderView(string $viewPath, array $params): string
     {
@@ -50,37 +91,36 @@ class View
             throw new RuntimeException("View file not found: {$viewFile}");
         }
 
-        // Extract params to variables for use inside view
-        extract($params);
-
-        // Start output buffering to capture HTML
         ob_start();
-        include $viewFile;
+
+        try {
+            (function () use ($viewFile, $params) {
+                extract($params, EXTR_SKIP);
+                $e = [self::class, 'e'];
+                include $viewFile;
+            })();
+        } catch (\Throwable $e) {
+            ob_end_clean();
+            throw new RuntimeException("Error rendering view {$viewFile}: " . $e->getMessage(), 0, $e);
+        }
+
         return ob_get_clean();
     }
 
     /**
-     * Render a reusable partial/component and return the HTML string.
+     * Sanitizes the provided view or partial path to prevent directory traversal attacks.
      *
-     * @param string $partial Partial filename (without .php), relative to /View/partials/
-     * @param array<string, mixed> $params Optional parameters to be extracted into scope
+     * Removes sequences like "../" or absolute paths to ensure the path stays within views.
      *
-     * @return string The rendered HTML of the partial
-     *
-     * @throws RuntimeException If the partial file does not exist
+     * @param string $path The input path to sanitize.
+     * @return string The sanitized relative path.
      */
-    public static function renderPartial(string $partial, array $params = []): string
+    private static function sanitizePath(string $path): string
     {
-        $file = Config::VIEWS_DIR . 'partials/' . $partial . '.php';
-
-        if (!file_exists($file)) {
-            throw new RuntimeException("Partial not found: {$file}");
-        }
-
-        extract($params, EXTR_SKIP);
-
-        ob_start();
-        include $file;
-        return ob_get_clean();
+        $path = str_replace(['\\'], '/', $path); // Normalize separators
+        $segments = explode('/', $path);
+        $clean = array_filter($segments, fn($seg) => $seg !== '' && $seg !== '.' && $seg !== '..');
+        return implode('/', $clean);
     }
+
 }

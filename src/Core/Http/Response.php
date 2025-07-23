@@ -12,14 +12,33 @@ namespace App\Core\Http;
  */
 class Response
 {
+    /**
+     * The body content of the response.
+     *
+     * @var string
+     */
     protected string $content;
+
+    /**
+     * The HTTP status code.
+     *
+     * @var int
+     */
     protected int $statusCode;
+
+    /**
+     * Associative array of HTTP headers.
+     *
+     * @var array<string, string>
+     */
     protected array $headers;
 
     /**
-     * @param string $content Body content of the response (HTML, JSON, text)
-     * @param int $statusCode HTTP status code (200, 404, 500, etc)
-     * @param array<string, string> $headers HTTP headers (Content-Type, Cache-Control, etc)
+     * Constructs a new Response object.
+     *
+     * @param string $content Body content of the response (HTML, JSON, plain text, etc)
+     * @param int $statusCode HTTP status code (e.g., 200, 404, 500)
+     * @param array<string, string> $headers Associative array of HTTP headers
      */
     public function __construct(string $content = '', int $statusCode = 200, array $headers = ['Content-Type' => 'text/html'])
     {
@@ -29,25 +48,29 @@ class Response
     }
 
     /**
-     * Sends HTTP headers and outputs the response content.
+     * Sends HTTP headers and outputs the response body.
+     *
+     * @return void
      */
     public function send(): void
     {
         http_response_code($this->statusCode);
 
         foreach ($this->headers as $name => $value) {
-            header("{$name}: {$value}");
+            header("{$name}: {$value}", true);
         }
 
         echo $this->content;
     }
 
     /**
-     * Factory method for JSON responses.
+     * Creates a new JSON response.
      *
-     * @param array $data Data to encode as JSON
+     * @param array|\JsonSerializable $data Data to be JSON-encoded
      * @param int $statusCode HTTP status code
-     * @return self
+     * @return self JSON response object
+     *
+     * @throws \JsonException If encoding fails
      */
     public static function json(array $data, int $statusCode = 200): self
     {
@@ -55,14 +78,40 @@ class Response
     }
 
     /**
-     * Factory method for HTML responses.
+     * Creates a new HTML response.
      *
      * @param string $html HTML content
      * @param int $statusCode HTTP status code
-     * @return self
+     * @return self HTML response object
      */
     public static function html(string $html, int $statusCode = 200): self
     {
         return new self($html, $statusCode, ['Content-Type' => 'text/html']);
+    }
+
+    /**
+     * Returns a copy of the response with an added or replaced header.
+     *
+     * @param string $name Header name
+     * @param string $value Header value
+     * @return self New response instance with the updated header
+     */
+    public function withHeader(string $name, string $value): self
+    {
+        $clone = clone $this;
+        $clone->headers[$name] = $value;
+        return $clone;
+    }
+
+    /**
+     * Creates a redirect response.
+     *
+     * @param string $url URL to redirect to
+     * @param int $statusCode HTTP status code (usually 302 for temporary redirect)
+     * @return self Redirect response object
+     */
+    public static function redirect(string $url, int $statusCode = 302): self
+    {
+        return new self('', $statusCode, ['Location' => $url]);
     }
 }
