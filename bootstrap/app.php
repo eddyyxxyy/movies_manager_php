@@ -2,10 +2,12 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../vendor/autoload.php';
-
+use App\Core\Kernel;
 use App\Core\Config;
 use App\Core\Container;
+use App\Core\Http\ExceptionHandler;
+
+require_once __DIR__ . '/../vendor/autoload.php';
 
 if (!is_dir(Config::CACHE_DIR)) {
     mkdir(Config::CACHE_DIR, 0775, true);
@@ -13,11 +15,15 @@ if (!is_dir(Config::CACHE_DIR)) {
 
 $container = new Container();
 
-// Optional bindings here
+// Bind optional definitions (ex: database, services, etc)
 // $container->bind(...);
 
-// Load router from route definitions
-$routerFactory = require __DIR__ . '/../src/routes.php';
+// Creates the router with DI container
+$routerFactory = require Config::APP_DIR . 'routes.php';
 $router = $routerFactory($container);
 
-return [$container, $router];
+$exceptionHandler = $container->resolve(ExceptionHandler::class);
+
+$kernel = new Kernel($container, $router, $exceptionHandler);
+
+return $kernel;

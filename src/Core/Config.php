@@ -12,6 +12,11 @@ final class Config
     public const BASE_DIR = __DIR__ . '/../../';
 
     /**
+     * App's source code directory.
+     */
+    public const APP_DIR = __DIR__ . '/../';
+
+    /**
      * Directory to store cache files.
      */
     public const CACHE_DIR = self::BASE_DIR . 'cache/';
