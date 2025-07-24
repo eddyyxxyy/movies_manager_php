@@ -8,7 +8,6 @@ use App\Contracts\RouterInterface;
 use App\Core\AppConfig;
 use App\Core\Http\Request;
 use App\Enums\ERequestMethods;
-use LogicException;
 
 /**
  * HTTP Router

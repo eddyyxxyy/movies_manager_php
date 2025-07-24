@@ -104,13 +104,11 @@ final class Container implements ContainerInterface
             $dependencies[] = $this->resolveParameter($param, $callableTarget);
         }
 
-        // CORREÇÃO: Removido get_class(). Resolvemos a instância diretamente pelo nome da classe.
         if ($reflection instanceof ReflectionMethod) {
             $instance = is_object($callable[0]) ? $callable[0] : $this->resolve($callable[0]);
             return $reflection->invokeArgs($instance, $dependencies);
         }
 
-        // Para closures ou funções
         return $reflection->invokeArgs($dependencies);
     }
 
