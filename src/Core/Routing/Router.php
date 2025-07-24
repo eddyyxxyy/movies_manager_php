@@ -10,30 +10,53 @@ use App\Enums\ERequestMethods;
 use LogicException;
 
 /**
- * Core routing class responsible for registering and dispatching HTTP routes.
+ * HTTP Router
+ *
+ * Registers HTTP routes, matches requests, and dispatches handlers.
+ * Supports static and dynamic routes, route caching, and error handling.
  */
-class Router
+final class Router
 {
-    /** @var array<string, array<string, array{0: class-string, 1: string}>> */
+    /**
+     * Static routes indexed by HTTP method and URI.
+     *
+     * @var array<string, array<string, array{0: class-string, 1: string}>>
+     */
     private array $staticRoutes = [];
 
-    /** @var array<string, array<int, array<int, array{pattern: string, original: string, handler: array}>>> */
+    /**
+     * Dynamic routes indexed by HTTP method and segment count.
+     *
+     * @var array<string, array<int, array<int, array{pattern: string, original: string, handler: array}>>>
+     */
     private array $dynamicRoutes = [];
 
-    /** @var array<string, array{0: class-string, 1: string, 2?: array}> */
+    /**
+     * Cached matched routes.
+     *
+     * @var array<string, array{0: class-string, 1: string, 2?: array}>
+     */
     private array $cachedMatches = [];
 
+    /**
+     * Cache file path for storing matched routes.
+     *
+     * @var string
+     */
     private string $cacheFile;
 
-    private RouteExecutor $executor;
-
-    public function __construct(RouteExecutor $executor)
+    /**
+     * @param RouteExecutor $executor Responsible for invoking controller handlers
+     */
+    public function __construct(private RouteExecutor $executor)
     {
-        $this->executor = $executor;
         $this->cacheFile = Config::CACHE_DIR . 'routes.cache.php';
         $this->loadCache();
     }
 
+    /**
+     * Load cached matched routes from cache file.
+     */
     private function loadCache(): void
     {
         if (file_exists($this->cacheFile)) {
@@ -44,6 +67,9 @@ class Router
         }
     }
 
+    /**
+     * Save matched routes to cache file.
+     */
     private function saveCache(): void
     {
         if (!is_dir(Config::CACHE_DIR)) {
@@ -57,27 +83,24 @@ class Router
     }
 
     /**
-     * Registers a route for a given HTTP method.
+     * Add a route for the specified HTTP method.
      *
-     * @param ERequestMethods $method HTTP verb (GET, POST, etc.)
-     * @param string $uriPattern Route URI pattern. Can include dynamic segments (e.g. /users/{id})
-     * @param array{0: class-string, 1: string} $handler Controller class and method
-     *
-     * @throws LogicException If route is already defined
+     * @param ERequestMethods $method HTTP method enum
+     * @param string $uriPattern Route URI pattern (supports dynamic segments)
+     * @param array{0: class-string, 1: string} $handler Controller class and method handler
+     * @throws LogicException If route already exists
      */
     public function add(ERequestMethods $method, string $uriPattern, array $handler): void
     {
         $methodKey = $method->value;
 
         if (!str_contains($uriPattern, '{')) {
-            // Static route
             if (isset($this->staticRoutes[$methodKey][$uriPattern])) {
                 throw new LogicException("Static route already defined for {$methodKey} {$uriPattern}");
             }
 
             $this->staticRoutes[$methodKey][$uriPattern] = $handler;
         } else {
-            // Dynamic route: convert pattern to regex
             $regex = preg_replace('#/{(\w+)}#', '/(?<$1>[^/]+)', $uriPattern);
             $regex = '#^' . $regex . '$#';
             $segments = substr_count($uriPattern, '/');
@@ -100,7 +123,9 @@ class Router
     }
 
     /**
-     * Dispatches the current request to the matched route, if any.
+     * Dispatch the current HTTP request to the appropriate route handler.
+     *
+     * @return void
      */
     public function dispatch(): void
     {
@@ -123,7 +148,6 @@ class Router
             return;
         }
 
-        // Static route
         if (isset($this->staticRoutes[$methodKey][$uri])) {
             $handler = $this->staticRoutes[$methodKey][$uri];
             $this->cachedMatches[$cacheKey] = [$handler[0], $handler[1]];
@@ -132,7 +156,6 @@ class Router
             return;
         }
 
-        // Dynamic route
         $segments = substr_count($uri, '/');
         foreach ($this->dynamicRoutes[$methodKey][$segments] ?? [] as $route) {
             if (preg_match($route['pattern'], $uri, $matches)) {
@@ -149,7 +172,42 @@ class Router
     }
 
     /**
-     * Lists all registered routes, both static and dynamic.
+     * Handle requests with unsupported HTTP methods.
+     *
+     * @param string $method HTTP method used
+     */
+    protected function handleMethodNotAllowed(string $method): void
+    {
+        http_response_code(405);
+        echo "<h1>405 Method Not Allowed</h1>";
+        echo "<p>Method '{$method}' is not supported.</p>";
+    }
+
+    /**
+     * Handle requests where no matching route was found.
+     *
+     * @param string $uri Requested URI
+     * @param ERequestMethods $method HTTP method enum
+     */
+    protected function handleNotFound(string $uri, ERequestMethods $method): void
+    {
+        http_response_code(404);
+        echo "<h1>404 Not Found</h1>";
+        echo "<p>No route found for {$method->value} {$uri}</p>";
+
+        if (Config::APP_DEBUG) {
+            echo "<h2>Available Routes:</h2><ul>";
+            foreach ($this->listRoutes() as $method => $routes) {
+                foreach ($routes as $route) {
+                    echo "<li><code>{$method} {$route['uri']}</code> → {$route['handler']}</li>";
+                }
+            }
+            echo "</ul>";
+        }
+    }
+
+    /**
+     * List all registered routes, both static and dynamic.
      *
      * @return array<string, array<array{uri: string, handler: string}>>
      */
@@ -180,37 +238,5 @@ class Router
         }
 
         return $result;
-    }
-
-    /**
-     * Handles unsupported HTTP methods.
-     */
-    protected function handleMethodNotAllowed(string $method): void
-    {
-        http_response_code(405);
-        // TODO: a view here
-        echo "<h1>405 Method Not Allowed</h1>";
-        echo "<p>Method '{$method}' is not supported.</p>";
-    }
-
-    /**
-     * Handles unmatched URIs.
-     */
-    protected function handleNotFound(string $uri, ERequestMethods $method): void
-    {
-        http_response_code(404);
-        // TODO: a view here
-        echo "<h1>404 Not Found</h1>";
-        echo "<p>No route found for {$method->value} {$uri}</p>";
-
-        if (Config::APP_DEBUG) {
-            echo "<h2>Available Routes:</h2><ul>";
-            foreach ($this->listRoutes() as $method => $routes) {
-                foreach ($routes as $route) {
-                    echo "<li><code>{$method} {$route['uri']}</code> → {$route['handler']}</li>";
-                }
-            }
-            echo "</ul>";
-        }
     }
 }

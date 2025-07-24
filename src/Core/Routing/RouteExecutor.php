@@ -4,52 +4,40 @@ declare(strict_types=1);
 
 namespace App\Core\Routing;
 
-use App\Core\Container;
 use App\Core\Http\Response;
 use RuntimeException;
 
 /**
- * Handles the execution of route handlers and response delivery.
+ * Responsible for executing the route's controller and method,
+ * then sending the HTTP response back to the client.
  */
 final class RouteExecutor
 {
     /**
-     * Dependency Injection Container
-     * @var Container
+     * @param ControllerResolver $resolver Resolves controller and method dependencies
      */
-    private Container $container;
-
-    public function __construct(Container $container)
+    public function __construct(private ControllerResolver $resolver)
     {
-        $this->container = $container;
     }
 
     /**
-     * Instantiates the controller and invokes the specified method.
+     * Execute the specified controller method with optional parameters.
      *
-     * @param class-string $controllerClass Controller class name
-     * @param string $methodName Method to call on the controller
-     * @param array<int|string, mixed> $params Parameters to pass (e.g. route params, request)
+     * @param class-string $controllerClass Fully qualified controller class name
+     * @param string $method Method name to invoke
+     * @param array $params Optional parameters passed (e.g., from route matches, requests)
+     * @return void
+     * @throws RuntimeException If method does not exist
      */
-    public function handle(string $controllerClass, string $methodName, array $params = []): void
+    public function handle(string $controllerClass, string $method, array $params = []): void
     {
-        $controller = $this->container->resolve($controllerClass);
-
-        if (!method_exists($controller, $methodName)) {
-            throw new RuntimeException("Method '{$methodName}' not found in '{$controllerClass}'");
+        if (!method_exists($controllerClass, $method)) {
+            throw new RuntimeException("Method {$method} not found in {$controllerClass}");
         }
 
-        $response = call_user_func_array([$controller, $methodName], $params);
-        $this->sendResponse($response);
-    }
+        // Resolve and call controller method with dependency injection
+        $response = $this->resolver->resolve($controllerClass, $method, $params);
 
-    /**
-     * Sends an HTTP response to the client.
-     *
-     * @param mixed $response Either a Response object or string
-     */
-    private function sendResponse(mixed $response): void
-    {
         if ($response instanceof Response) {
             $response->send();
         } else {
