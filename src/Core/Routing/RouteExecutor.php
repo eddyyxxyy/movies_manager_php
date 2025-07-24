@@ -4,30 +4,32 @@ declare(strict_types=1);
 
 namespace App\Core\Routing;
 
+use App\Contracts\ContainerInterface;
 use App\Core\Http\Response;
 use RuntimeException;
 
 /**
- * Responsible for executing the route's controller and method,
- * then sending the HTTP response back to the client.
+ * Executes a route's controller action.
+ *
+ * This class uses the service container to resolve the controller
+ * and its method's dependencies, then sends the resulting response.
  */
 final class RouteExecutor
 {
     /**
-     * @param ControllerResolver $resolver Resolves controller and method dependencies
+     * @param ContainerInterface $container The service container.
      */
-    public function __construct(private ControllerResolver $resolver)
+    public function __construct(private ContainerInterface $container)
     {
     }
 
     /**
-     * Execute the specified controller method with optional parameters.
+     * Execute the specified controller method with injected dependencies.
      *
-     * @param class-string $controllerClass Fully qualified controller class name
-     * @param string $method Method name to invoke
-     * @param array $params Optional parameters passed (e.g., from route matches, requests)
+     * @param class-string $controllerClass Fully qualified controller class name.
+     * @param string $method Method name to invoke.
+     * @param array<string, mixed> $params Parameters from the route match.
      * @return void
-     * @throws RuntimeException If method does not exist
      */
     public function handle(string $controllerClass, string $method, array $params = []): void
     {
@@ -35,12 +37,11 @@ final class RouteExecutor
             throw new RuntimeException("Method {$method} not found in {$controllerClass}");
         }
 
-        // Resolve and call controller method with dependency injection
-        $response = $this->resolver->resolve($controllerClass, $method, $params);
+        $response = $this->container->call([$controllerClass, $method], $params);
 
         if ($response instanceof Response) {
             $response->send();
-        } else {
+        } elseif (is_string($response) || is_numeric($response)) {
             echo $response;
         }
     }

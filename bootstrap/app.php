@@ -2,34 +2,67 @@
 
 declare(strict_types=1);
 
-use App\Core\Config;
+use App\Contracts\ContainerInterface;
+use App\Contracts\ExceptionHandlerInterface;
+use App\Contracts\RouterInterface;
+use App\Contracts\ViewInterface;
+use App\Core\AppConfig;
 use App\Core\Container;
+use App\Core\Http\ExceptionHandler;
 use App\Core\Kernel;
 use App\Core\Routing\Router;
+use App\Core\View\View;
 use App\Providers\RouteServiceProvider;
-use App\Core\Http\ExceptionHandler;
 
+// 1. Load Composer's autoloader
 require_once __DIR__ . '/../vendor/autoload.php';
 
-// Ensure cache directory exists
-if (!is_dir(Config::CACHE_DIR)) {
-    mkdir(Config::CACHE_DIR, 0775, true);
+// 2. Load environment variables
+require_once __DIR__ . '/env.php';
+loadEnv(__DIR__ . '/../.env');
+
+// 3. Load application configuration
+$appConfigValues = require __DIR__ . '/../config/app.php';
+
+// 4. Ensure cache directory exists
+if (!is_dir($appConfigValues['cache_dir'])) {
+    mkdir($appConfigValues['cache_dir'], 0775, true);
 }
 
+// 5. Create the service container
 $container = new Container();
 
-// Bind interfaces or special bindings here, if needed
-// e.g. $container->bind(SomeInterface::class, SomeImplementation::class);
+/*
+|--------------------------------------------------------------------------
+| Bind Core Application Components
+|--------------------------------------------------------------------------
+*/
 
-// Resolve the Router through a RouteServiceProvider to register routes
+// Bind the container itself to its interface for self-resolution
+$container->singleton(ContainerInterface::class, $container);
+
+// Bind the AppConfig as a singleton
+$container->singleton(AppConfig::class, new AppConfig($appConfigValues));
+
+// Bind core interfaces to their concrete implementations
+$container->singleton(ExceptionHandlerInterface::class, ExceptionHandler::class);
+$container->singleton(RouterInterface::class, Router::class);
+$container->bind(ViewInterface::class, View::class);
+
+
+/*
+|--------------------------------------------------------------------------
+| Register Service Providers
+|--------------------------------------------------------------------------
+*/
+
 $routeServiceProvider = $container->resolve(RouteServiceProvider::class);
-$router = $container->resolve(Router::class);
+$routeServiceProvider->register($container->resolve(RouterInterface::class));
 
-// Register routes on the router
-$routeServiceProvider->register($router);
+/*
+|--------------------------------------------------------------------------
+| Create and Return The Kernel
+|--------------------------------------------------------------------------
+*/
 
-// Resolve ExceptionHandler via autowiring
-$exceptionHandler = $container->resolve(ExceptionHandler::class);
-
-// Instantiate and return the Kernel
-return new Kernel($container, $router, $exceptionHandler);
+return $container->resolve(Kernel::class);

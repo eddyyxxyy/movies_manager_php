@@ -4,24 +4,29 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
-use App\Core\Routing\Router;
+use App\Contracts\RouterInterface;
 use App\Enums\ERequestMethods;
 use App\Http\Controllers\HomeController;
 
 /**
- * Registers application routes to the Router.
+ * Registers application routes with the Router.
  */
 final class RouteServiceProvider
 {
     /**
-     * Register all routes to the router instance.
+     * Register all routes on the router instance.
      *
-     * @param Router $router The router instance to register routes on
+     * @param RouterInterface $router The router instance to register routes on.
      * @return void
      */
-    public function register(Router $router): void
+    public function register(RouterInterface $router): void
     {
-        // Routes
         $router->add(ERequestMethods::GET, '/', [HomeController::class, 'index']);
+        $router->add(ERequestMethods::GET, '/users/{id}', [HomeController::class, 'showUser']);
+
+        // After all routes are added, cache them for production.
+        if (method_exists($router, 'cacheRoutes')) {
+            $router->cacheRoutes();
+        }
     }
 }

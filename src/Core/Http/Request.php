@@ -5,16 +5,15 @@ declare(strict_types=1);
 namespace App\Core\Http;
 
 /**
- * Class Request
+ * Represents an HTTP request.
  *
- * Represents an HTTP request received by the server.
  * Provides a clean, object-oriented interface to access request data
- * (query params, post data, method, URI, headers, etc).
+ * (query params, post data, method, URI, headers, etc.).
  */
 class Request
 {
     /**
-     * Returns the HTTP method (GET, POST, PUT, DELETE, etc).
+     * Returns the HTTP method (GET, POST, etc.).
      */
     public function getMethod(): string
     {
@@ -23,20 +22,14 @@ class Request
 
     /**
      * Returns the request URI path (without query string).
-     * Example: /users/123
      */
     public function getUri(): string
     {
-        return parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?? '/';
+        return strtok($_SERVER['REQUEST_URI'] ?? '/', '?') ?: '/';
     }
 
     /**
      * Retrieves a request parameter from POST or GET.
-     * POST has precedence over GET.
-     *
-     * @param string $key Parameter name
-     * @param mixed $default Default value if parameter not found
-     * @return mixed
      */
     public function input(string $key, mixed $default = null): mixed
     {
@@ -45,9 +38,6 @@ class Request
 
     /**
      * Returns all input parameters from both GET and POST.
-     * POST parameters overwrite GET parameters on conflicts.
-     *
-     * @return array<string, mixed>
      */
     public function all(): array
     {
@@ -56,11 +46,9 @@ class Request
 
     /**
      * Returns whether the request was made via AJAX.
-     *
-     * Useful for returning different content or headers in AJAX calls.
      */
     public function isAjax(): bool
     {
-        return ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'XMLHttpRequest';
+        return strtolower($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'xmlhttprequest';
     }
 }

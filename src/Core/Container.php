@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Core;
 
+use App\Contracts\ContainerInterface;
 use Closure;
 use ReflectionClass;
 use ReflectionFunction;
@@ -17,55 +18,38 @@ use RuntimeException;
  *
  * Automatically resolves class dependencies and manages singleton instances.
  */
-final class Container
+final class Container implements ContainerInterface
 {
     /**
      * Bindings array.
-     * Maps abstract identifiers (interfaces or classes) to concrete implementations or closures.
-     *
-     * @var array<class-string, Closure|class-string|object>
+     * @var array<class-string, array{concrete: Closure|class-string|object, shared: bool}>
      */
     protected array $bindings = [];
 
     /**
      * Singleton instances cache.
-     *
      * @var array<class-string, object>
      */
     protected array $instances = [];
 
     /**
-     * Register a binding in the container.
-     *
-     * @param class-string $abstract Abstract class or interface name
-     * @param class-string|Closure|object $concrete Concrete class name, closure factory, or instance
+     * {@inheritdoc}
      */
-    public function bind(string $abstract, string|object $concrete): void
+    public function bind(string $abstract, string|object|null $concrete = null): void
     {
-        $this->bindings[$abstract] = $concrete;
+        $this->registerBinding($abstract, $concrete, false);
     }
 
     /**
-     * Register a singleton instance in the container.
-     *
-     * @param class-string $abstract Abstract class or interface name
-     * @param object $instance Instantiated singleton object
+     * {@inheritdoc}
      */
-    public function singleton(string $abstract, object $instance): void
+    public function singleton(string $abstract, string|object|null $concrete = null): void
     {
-        $this->instances[$abstract] = $instance;
+        $this->registerBinding($abstract, $concrete, true);
     }
 
     /**
-     * Resolve a class or interface to an instance.
-     *
-     * If a singleton exists, returns it.
-     * If a binding exists, uses it.
-     * Otherwise tries to autowire via constructor injection.
-     *
-     * @param class-string $id Class or interface name to resolve
-     * @return object Resolved instance
-     * @throws RuntimeException If resolution fails
+     * {@inheritdoc}
      */
     public function resolve(string $id): object
     {
@@ -73,114 +57,111 @@ final class Container
             return $this->instances[$id];
         }
 
-        if (isset($this->bindings[$id])) {
-            $concrete = $this->bindings[$id];
+        $isShared = isset($this->bindings[$id]) && $this->bindings[$id]['shared'];
+        $concrete = $this->bindings[$id]['concrete'] ?? $id;
 
-            if ($concrete instanceof Closure) {
-                $object = $concrete($this);
-            } elseif (is_string($concrete)) {
-                $object = $this->resolve($concrete);
-            } else {
-                $object = $concrete;
-            }
-
-            if (is_object($object)) {
-                $this->instances[$id] = $object;
-            }
-
-            return $object;
+        if ($concrete instanceof Closure) {
+            $object = $concrete($this);
+        } elseif (is_object($concrete)) {
+            $object = $concrete;
+        } elseif ($concrete === $id) {
+            $object = $this->autowire($id);
+        } else {
+            $object = $this->resolve($concrete);
         }
 
-        return $this->autowire($id);
+        if ($isShared) {
+            $this->instances[$id] = $object;
+        }
+
+        return $object;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    /**
+     * {@inheritdoc}
+     */
+    public function call(callable|string|array $callable, array $overrideParams = []): mixed
+    {
+        $reflection = match (true) {
+            $callable instanceof Closure => new ReflectionFunction($callable),
+            is_string($callable) && str_contains($callable, '::') => new ReflectionMethod($callable),
+            is_array($callable) => new ReflectionMethod($callable[0], $callable[1]),
+            default => new ReflectionFunction($callable)
+        };
+
+        $dependencies = [];
+        $callableTarget = is_array($callable) ? (is_object($callable[0]) ? get_class($callable[0]) : $callable[0]) . '::' . $callable[1] : $reflection->getName();
+
+        foreach ($reflection->getParameters() as $param) {
+            $name = $param->getName();
+            if (array_key_exists($name, $overrideParams)) {
+                $dependencies[] = $overrideParams[$name];
+                continue;
+            }
+            $dependencies[] = $this->resolveParameter($param, $callableTarget);
+        }
+
+        // CORREÇÃO: Removido get_class(). Resolvemos a instância diretamente pelo nome da classe.
+        if ($reflection instanceof ReflectionMethod) {
+            $instance = is_object($callable[0]) ? $callable[0] : $this->resolve($callable[0]);
+            return $reflection->invokeArgs($instance, $dependencies);
+        }
+
+        // Para closures ou funções
+        return $reflection->invokeArgs($dependencies);
+    }
+
+    /**
+     * Register a binding in the container.
+     */
+    private function registerBinding(string $abstract, string|object|null $concrete, bool $shared): void
+    {
+        $concrete ??= $abstract;
+        $this->bindings[$abstract] = compact('concrete', 'shared');
     }
 
     /**
      * Autowire a class by resolving its constructor dependencies recursively.
-     *
-     * @param class-string $class Fully qualified class name
-     * @return object Instantiated object
-     * @throws RuntimeException If dependency cannot be resolved
      */
-    protected function autowire(string $class): object
+    private function autowire(string $class): object
     {
         $reflection = new ReflectionClass($class);
+
+        if (!$reflection->isInstantiable()) {
+            throw new RuntimeException("Class {$class} is not instantiable.");
+        }
 
         $constructor = $reflection->getConstructor();
         if (!$constructor) {
             return new $class();
         }
 
-        $parameters = $constructor->getParameters();
-        $dependencies = array_map(fn(ReflectionParameter $param) => $this->resolveParameter($param), $parameters);
+        $dependencies = array_map(
+            fn(ReflectionParameter $param) => $this->resolveParameter($param, $class . '::__construct'),
+            $constructor->getParameters()
+        );
 
         return $reflection->newInstanceArgs($dependencies);
     }
 
     /**
-     * Call a callable or method with automatic dependency injection.
-     *
-     * Supports callables as:
-     * - Closure or function name (string)
-     * - Array with [class/object, method]
-     * - Static method string "Class::method"
-     *
-     * @param callable|string|array $callable The callable to execute
-     * @param array<string, mixed> $overrideParams Associative array of parameters to override by name
-     * @return mixed Return value of the callable
-     * @throws RuntimeException If dependency cannot be resolved
-     */
-    public function call(callable|string|array $callable, array $overrideParams = []): mixed
-    {
-        if (is_array($callable)) {
-            $className = is_object($callable[0]) ? get_class($callable[0]) : $callable[0];
-            $methodName = $callable[1];
-            $reflection = ReflectionMethod::createFromMethodName("$className::$methodName");
-        } elseif (is_string($callable) && str_contains($callable, '::')) {
-            $reflection = ReflectionMethod::createFromMethodName($callable);
-        } else {
-            $reflection = new ReflectionFunction($callable);
-        }
-
-        $dependencies = [];
-
-        foreach ($reflection->getParameters() as $param) {
-            $name = $param->getName();
-
-            if (array_key_exists($name, $overrideParams)) {
-                $dependencies[] = $overrideParams[$name];
-                continue;
-            }
-
-            $dependencies[] = $this->resolveParameter($param);
-        }
-
-        return call_user_func_array($callable, $dependencies);
-    }
-
-    /**
      * Resolve an individual method or constructor parameter.
-     *
-     * If type is class, resolves it recursively.
-     * If optional, returns default value.
-     * Otherwise throws an exception.
-     *
-     * @param ReflectionParameter $param The parameter reflection
-     * @return mixed Resolved parameter value
-     * @throws RuntimeException
      */
-    protected function resolveParameter(ReflectionParameter $param): mixed
+    private function resolveParameter(ReflectionParameter $param, string $context): mixed
     {
         $type = $param->getType();
 
         if ($type instanceof ReflectionNamedType && !$type->isBuiltin()) {
-            $typeName = $type->getName();
-            return $this->resolve($typeName);
+            return $this->resolve($type->getName());
         }
 
         if ($param->isDefaultValueAvailable()) {
             return $param->getDefaultValue();
         }
 
-        throw new RuntimeException("Unable to resolve parameter \${$param->getName()}.");
+        throw new RuntimeException("Unresolvable dependency: Cannot resolve parameter \${$param->getName()} for {$context}");
     }
 }
