@@ -4,12 +4,14 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev:css": "bunx --bun tailwindcss -i ./resources/css/global.css -o ./public/css/global.css -m -w",
-    "build:css": "bunx --bun tailwindcss -i ./resources/css/global.css -o ./public/css/global.css -m"
+    "dev:tailwind": "bunx --bun tailwindcss -i ./resources/css/global.css -o ./public/css/global.css -m -w",
+    "dev:php": "php -S localhost:8000 -t public/",
+    "dev": "concurrently \"bun run dev:tailwind\" \"bun run dev:php\""
   },
   "devDependencies": {
     "@tailwindcss/cli": "^4.1.11",
     "@types/bun": "latest",
+    "concurrently": "^9.2.0",
     "tailwindcss": "^4.1.11"
   },
   "peerDependencies": {
