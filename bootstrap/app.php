@@ -18,6 +18,8 @@ use App\Core\Kernel;
 use App\Core\Routing\Router;
 use App\Core\Session\Session;
 use App\Core\View\View;
+use App\DAO\UserDAO;
+use App\Services\UserService;
 use App\Providers\RouteServiceProvider;
 use App\Providers\SessionServiceProvider;
 
@@ -71,6 +73,12 @@ $container->singleton(Uploader::class, fn(ContainerInterface $c) => new Uploader
 // Bind ExceptionHandler and Router as singletons
 $container->singleton(ExceptionHandlerInterface::class, ExceptionHandler::class);
 $container->singleton(RouterInterface::class, Router::class);
+
+// Bind Data Access Objects (DAOs) as singletons
+$container->singleton(UserDAO::class, UserDAO::class);
+
+// Bind Business Services as singletons
+$container->singleton(UserService::class, UserService::class);
 
 // Bind View as non shared component of the application
 $container->bind(ViewInterface::class, View::class);
