@@ -4,3 +4,9 @@ composer.phar
 
 ### App ###
 .env
+
+### Front-End Assets ###
+/node_modules/
+
+### User Uploads ###
+/public/uploads/

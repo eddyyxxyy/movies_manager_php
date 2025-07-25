@@ -1,0 +1,18 @@
+{
+  "name": "movies-manager",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev:css": "bunx --bun tailwindcss -i ./resources/css/global.css -o ./public/css/global.css -m -w",
+    "build:css": "bunx --bun tailwindcss -i ./resources/css/global.css -o ./public/css/global.css -m"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.1.11",
+    "@types/bun": "latest",
+    "tailwindcss": "^4.1.11"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}

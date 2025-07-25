@@ -34,7 +34,8 @@ movies-manager/
 Para rodar o Movies Manager em ambiente de desenvolvimento, basta subir o servidor embutido do PHP apontando para a pasta `public/`:
 
 ```bash
-php -S localhost:8000 public/router.php
+# Estando na pasta raiz do projeto
+php -S localhost:8000 -t .\public\
 ```
 
 Depois, acesse [http://localhost:8000](http://localhost:8000) no navegador.
