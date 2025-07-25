@@ -3,12 +3,14 @@
 declare(strict_types=1);
 
 use App\Contracts\ContainerInterface;
+use App\Contracts\CsrfTokenInterface;
 use App\Contracts\ExceptionHandlerInterface;
 use App\Contracts\RouterInterface;
 use App\Contracts\SessionInterface;
 use App\Contracts\ViewInterface;
 use App\Core\AppConfig;
 use App\Core\Container;
+use App\Core\CSRF\CsrfToken;
 use App\Core\Database\DatabaseManager;
 use App\Core\Http\ExceptionHandler;
 use App\Core\Kernel;
@@ -54,6 +56,9 @@ $container->singleton(AppConfig::class, new AppConfig($appConfigValues));
 
 // Bind Session manager as singleton
 $container->singleton(SessionInterface::class, Session::class);
+
+// Bind CsrfTokenInterface as singleton.
+$container->singleton(CsrfTokenInterface::class, CsrfToken::class);
 
 // Bind DatabaseManager and actual connection as a singleton
 $container->singleton(DatabaseManager::class, DatabaseManager::class);
