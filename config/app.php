@@ -29,6 +29,7 @@ return [
     | Application Directory Paths
     |--------------------------------------------------------------------------
     */
-    'views_dir' => __DIR__ . '/../src/View/',
-    'cache_dir' => __DIR__ . '/../cache/',
+    'views_dir' => getenv('VIEWS_DIR') ?: __DIR__ . '/../src/View/',
+    'cache_dir' => getenv('CACHE_DIR') ?: __DIR__ . '/../cache/',
+    'upload_dir' => getenv('UPLOAD_DIR') ?: __DIR__ . '/../public/uploads/images',
 ];

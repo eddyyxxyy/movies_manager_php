@@ -12,6 +12,7 @@ use App\Core\AppConfig;
 use App\Core\Container;
 use App\Core\CSRF\CsrfToken;
 use App\Core\Database\DatabaseManager;
+use App\Core\Files\Uploader;
 use App\Core\Http\ExceptionHandler;
 use App\Core\Kernel;
 use App\Core\Routing\Router;
@@ -63,6 +64,9 @@ $container->singleton(CsrfTokenInterface::class, CsrfToken::class);
 // Bind DatabaseManager and actual connection as a singleton
 $container->singleton(DatabaseManager::class, DatabaseManager::class);
 $container->singleton(PDO::class, fn(ContainerInterface $c) => $c->resolve(DatabaseManager::class)->getConnection());
+
+// Bind File Uploader as a singleton
+$container->singleton(Uploader::class, fn(ContainerInterface $c) => new Uploader($c->resolve(AppConfig::class)->get('upload_dir')));
 
 // Bind ExceptionHandler and Router as singletons
 $container->singleton(ExceptionHandlerInterface::class, ExceptionHandler::class);
