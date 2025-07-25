@@ -8,6 +8,7 @@ use App\Contracts\RouterInterface;
 use App\Contracts\ViewInterface;
 use App\Core\AppConfig;
 use App\Core\Container;
+use App\Core\Database\DatabaseManager;
 use App\Core\Http\ExceptionHandler;
 use App\Core\Kernel;
 use App\Core\Routing\Router;
@@ -21,8 +22,12 @@ require_once __DIR__ . '/../vendor/autoload.php';
 require_once __DIR__ . '/env.php';
 loadEnv(__DIR__ . '/../.env');
 
-// 3. Load application configuration
+// 3. Load application and database configuration
 $appConfigValues = require __DIR__ . '/../config/app.php';
+$dbConfigValues = require __DIR__ . '/../config/database.php';
+
+// 3.1 Merge all config files
+$appConfigValues = array_merge($appConfigValues, ['database' => $dbConfigValues]);
 
 // 4. Ensure cache directory exists
 if (!is_dir($appConfigValues['cache_dir'])) {
@@ -43,6 +48,10 @@ $container->singleton(ContainerInterface::class, $container);
 
 // Bind the AppConfig as a singleton
 $container->singleton(AppConfig::class, new AppConfig($appConfigValues));
+
+// Bind DatabaseManager and actual connection as a singleton
+$container->singleton(DatabaseManager::class, DatabaseManager::class);
+$container->singleton(PDO::class, fn(ContainerInterface $c) => $c->resolve(DatabaseManager::class)->getConnection());
 
 // Bind core interfaces to their concrete implementations
 $container->singleton(ExceptionHandlerInterface::class, ExceptionHandler::class);

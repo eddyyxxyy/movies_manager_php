@@ -22,7 +22,6 @@ final class RouteServiceProvider
     public function register(RouterInterface $router): void
     {
         $router->add(ERequestMethods::GET, '/', [HomeController::class, 'index']);
-        $router->add(ERequestMethods::GET, '/users/{id}', [HomeController::class, 'showUser']);
 
         // After all routes are added, cache them for production.
         if (method_exists($router, 'cacheRoutes')) {
