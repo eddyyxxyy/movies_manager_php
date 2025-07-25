@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Contracts\ContainerInterface;
 use App\Contracts\ExceptionHandlerInterface;
 use App\Contracts\RouterInterface;
+use App\Contracts\SessionInterface;
 use App\Contracts\ViewInterface;
 use App\Core\AppConfig;
 use App\Core\Container;
@@ -12,8 +13,10 @@ use App\Core\Database\DatabaseManager;
 use App\Core\Http\ExceptionHandler;
 use App\Core\Kernel;
 use App\Core\Routing\Router;
+use App\Core\Session\Session;
 use App\Core\View\View;
 use App\Providers\RouteServiceProvider;
+use App\Providers\SessionServiceProvider;
 
 // 1. Load Composer's autoloader
 require_once __DIR__ . '/../vendor/autoload.php';
@@ -49,13 +52,18 @@ $container->singleton(ContainerInterface::class, $container);
 // Bind the AppConfig as a singleton
 $container->singleton(AppConfig::class, new AppConfig($appConfigValues));
 
+// Bind Session manager as singleton
+$container->singleton(SessionInterface::class, Session::class);
+
 // Bind DatabaseManager and actual connection as a singleton
 $container->singleton(DatabaseManager::class, DatabaseManager::class);
 $container->singleton(PDO::class, fn(ContainerInterface $c) => $c->resolve(DatabaseManager::class)->getConnection());
 
-// Bind core interfaces to their concrete implementations
+// Bind ExceptionHandler and Router as singletons
 $container->singleton(ExceptionHandlerInterface::class, ExceptionHandler::class);
 $container->singleton(RouterInterface::class, Router::class);
+
+// Bind View as non shared component of the application
 $container->bind(ViewInterface::class, View::class);
 
 
@@ -64,6 +72,9 @@ $container->bind(ViewInterface::class, View::class);
 | Register Service Providers
 |--------------------------------------------------------------------------
 */
+
+$sessionServiceProvider = $container->resolve(SessionServiceProvider::class);
+$sessionServiceProvider->register();
 
 $routeServiceProvider = $container->resolve(RouteServiceProvider::class);
 $routeServiceProvider->register($container->resolve(RouterInterface::class));
